@@ -24,7 +24,7 @@ Note: These bagfiles are for ROS1, so we will need to convert them to ROS2 forma
 To convert the bagfile (.bag) to be compatible with ROS2 we will need to run the following commands:
 ```
 cd ~/<path to the .bag file>
-rosbags-convert --src <name of your bagfile>.bag --dst <folder name that will be created to place the converted .db3 file>
+rosbags-convert --src <bagfile_name>.bag --dst <folder_name_for_converted_file>
 ```
 Now you should see a new folder with the converted .db3 file.
 
