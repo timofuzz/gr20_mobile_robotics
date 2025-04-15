@@ -29,6 +29,7 @@ rosbags-convert --src <bagfile_name>.bag --dst <folder_name_for_converted_file>
 Now you should see a new folder with the converted .db3 file.
 
 Now with the build set up in the last step, to run the demo we will need two terminals.
+
 Terminal 1:
 ```
 cd ~/<repo ws>
@@ -36,6 +37,7 @@ source install/setup.bash
 ros2 launch lidarslam lidarslam.launch.py
 ```
 Once the launch file is running in the first terminal, RViz should open up. For the sake of demostration, let's work with the HDL400 bagfile (assuming it is converted to .db3).
+
 Terminal 2:
 ```
 cd ~/<folder w/ the hdl400.db3 file>
