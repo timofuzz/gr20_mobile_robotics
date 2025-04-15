@@ -17,8 +17,8 @@ colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
 
 ## Running the build and demo instructions
 To run the demo directly with this ROS2 Lidar SLAM build, you will need the HDL400 dataset bagfile. Included is the link to the Radar bagfiles as well:
-1. [Lidar Downlaod link](https://zenodo.org/record/6960371) - This is an outdoor dataset for Lidar SLAM specifically.
-2. [Radar Download link](https://cloud.oru.se/s/rHbRad83A764nmx) - This link has the forest and mine Radar bagfiles.
+1. [Lidar Bag Download link](https://zenodo.org/record/6960371) - This is an outdoor dataset for Lidar SLAM specifically.
+2. [Radar Bag Download link](https://cloud.oru.se/s/rHbRad83A764nmx) - This link has the forest and mine Radar bagfiles.
 Note: These bagfiles are for ROS1, so we will need to convert them to ROS2 format first
 
 To convert the bagfile (.bag) to be compatible with ROS2 we will need to run the following commands:
