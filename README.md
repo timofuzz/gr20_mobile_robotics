@@ -1,6 +1,6 @@
 # gr20_mobile_robotics
 
-This project was run and tested on an Ubuntu 22.04 with ROS2 Humble.
+This project was run and tested on Ubuntu 22.04 with ROS2 Humble.
 
 ## Build instructions for this repo
 1. Clone/download this repo
