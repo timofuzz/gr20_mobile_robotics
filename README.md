@@ -7,7 +7,7 @@ This project was run and tested on an Ubuntu 22.04 with ROS2 Humble.
 2. Make a workspace for this project and probably good idea to have a separate conda environment.
 3. Navigate into the workspace and make sure it has the following structure, after which run the commands
 ```
-cd ~/<your repo ws>
+cd ~/<repo_ws>
 rosdep install --from-paths src --ignore-src -r -y
 ```
 Build this project
