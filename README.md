@@ -6,12 +6,12 @@ This project was run and tested on Ubuntu 22.04 with ROS2 Humble.
 1. Clone/download this repo
 2. Make a workspace for this project and probably good idea to have a separate conda environment.
 3. Clone [g2o](https://github.com/RainerKuemmerle/g2o) globally, and install it into your conda environment (do not track g2o in git)
-4. Navigate into the workspace and make sure it has the following structure, after which run the commands
+4. Navigate into the workspace and make sure it has the following structure, after which run the commands:
 ```
 cd ~/<repo_ws>
 rosdep install --from-paths src --ignore-src -r -y
 ```
-Build this project
+Build this project:
 ```
 rosdep install --from-paths src --ignore-src -r -y --skip-keys=libg2o
 ```
