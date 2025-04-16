@@ -2,6 +2,20 @@
 
 This project was run and tested on Ubuntu 22.04 with ROS2 Humble.
 
+## Radar Odom Setup
+1. The odom is set up and run just like any other ROS2 package:
+```
+cd ~/<repo_ws>
+colcon build
+source install/setup.bash
+ros2 launch radar_odom run.py
+```
+
+Once the node is running, it will be waiting for the defined imu and radar topics (the defaults are /imu/vectornav and /radar_pcl_enchanced). To change these to the ones you are trying to work with, navigate to:
+
+1. The config files - change the imu and radar topic names to match the ones you are working with.
+2. radar_pcl_processor.cpp - change the imu and radar topic names here as well
+
 ## Build instructions for this repo
 1. Clone/download this repo
 2. Make a workspace for this project and probably good idea to have a separate conda environment.
