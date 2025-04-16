@@ -23,12 +23,12 @@ def generate_launch_description():
     #    name='optimizer'
     #)
 
-    #baselink_tf = Node(
-    #    package='radar_odom',
-    #    executable='baselink_tf',
-    #    name='baselink_tf',
-    #    parameters=[{'topic_name': '/odometry'}]
-    #)
+    baselink_tf = Node(
+        package='radar_odom',
+        executable='baselink_tf',
+        name='baselink_tf',
+        parameters=[{'topic_name': '/ego_vel_twist'}],
+    )
 
     #record = Node(
     #    package='radar_odom',
@@ -37,7 +37,7 @@ def generate_launch_description():
     #)
 
     #nodes_to_execute = [radar_pcl_processor,optimizer,record,baselink_tf]
-    nodes_to_execute = [radar_pcl_processor]
+    nodes_to_execute = [radar_pcl_processor,baselink_tf]
 
 
     return LaunchDescription(nodes_to_execute)

@@ -192,7 +192,7 @@ void ScanMatcherComponent::initializePubSub()
           std::chrono::nanoseconds(msg->header.stamp.nanosec));
         const geometry_msgs::msg::TransformStamped transform = tfbuffer_.lookupTransform(
           robot_frame_id_, msg->header.frame_id, time_point);
-        tf2::doTransform(*msg, transformed_msg, transform); // TODO:slow now(https://github.com/ros/geometry2/pull/432)
+        tf2::doTransform(*msg, transformed_msg, transform);
       } catch (tf2::TransformException & e) {
         RCLCPP_ERROR(this->get_logger(), "%s", e.what());
         return;
@@ -225,7 +225,6 @@ void ScanMatcherComponent::initializePubSub()
       }
 
       if (initial_cloud_received_) {receiveCloud(tmp_ptr, msg->header.stamp);}
-
     };
 
   auto imu_callback =

@@ -9,18 +9,15 @@ def generate_launch_description():
     return LaunchDescription([
         Node(
             package='naive_map',
-            executable='naive_mapper_node',
-            name='naive_mapper',
+            executable='simple_odom_node',  # Changed from naive_mapper_node
+            name='simple_odom',             # Updated name to match
             output='screen',
             parameters=[
-                {'voxel_size': 0.1},
                 {'map_frame': 'map'},
-                {'robot_frame': 'base_link'},
-                {'publish_rate': 1.0}
+                {'robot_frame': 'base_link'}
             ],
-            remappings=[
-                ('/Ego-Velocity', '/Ego-Velocity'),
-                ('/Filtered_cloud', '/Filtered_cloud')
-            ]
+            #remappings=[
+            #    ('/ego_velocity', '/ego_vel_twist')
+            #]
         )
     ])

@@ -21,6 +21,11 @@ def generate_launch_description():
         default_value='',
         description='Path to ground truth TUM file'
     )
+    pc_arg = DeclareLaunchArgument(
+        'pointcloud_topic',
+        default_value='/ouster/points',
+        description='PointCloud2 topic to use for SLAM'
+    )
 
     # Paths to your launch files
     pkg_lidarslam = os.path.join(
@@ -31,6 +36,7 @@ def generate_launch_description():
     def launch_setup(context, *args, **kwargs):
         mode = LaunchConfiguration('mode').perform(context)
         ground_truth_path = LaunchConfiguration('ground_truth_path').perform(context)
+        pointcloud_topic = LaunchConfiguration('pointcloud_topic').perform(context)
         actions = []
 
         # Launch the selected SLAM/odometry node
@@ -50,7 +56,19 @@ def generate_launch_description():
             actions.append(
                 IncludeLaunchDescription(
                     PythonLaunchDescriptionSource(pkg_lidarslam),
-                    launch_arguments={'registration_method': 'RADAR'}.items()
+                    launch_arguments={
+                        'registration_method': 'RADAR',
+                        'pointcloud_topic': '/hugin_raf_1/radar_data_intensity'
+                    }.items()
+                )
+            )
+            # Launch the radar intensity mapper node
+            actions.append(
+                Node(
+                    package='eval',
+                    executable='radar_intensity_mapper',
+                    name='radar_intensity_mapper',
+                    output='screen'
                 )
             )
         else:
@@ -65,33 +83,30 @@ def generate_launch_description():
                 output='screen',
                 parameters=[
                     {'ground_truth_path': ground_truth_path},
-                    {'gt_time_offset': 120.0 - 155.71 - 0}  # or whatever offset you need
+                    {'gt_time_offset': 120.0 - 155.71 - 0}
                 ],
-                remappings=[
-                    #('/current_pose', '/your_topic')  # Change '/your_topic' to your actual topic
-                ]
             )
         )
 
-        # Add the ground truth publisher node
-        # actions.append(
-        #     Node(
-        #         package='eval',
-        #         executable='gt_publisher_node',
-        #         name='ground_truth_publisher',
-        #         output='screen',
-        #         parameters=[
-        #             {'ground_truth_path': ground_truth_path},
-        #             {'publish_rate': 10.0},
-        #             {'gt_time_offset': 120.0 - 155.71}  # or whatever offset you need
-        #         ]
-        #     )
-        # )
+        # Always launch the ground truth publisher node
+        actions.append(
+            Node(
+                package='eval',
+                executable='gt_publisher_node',
+                name='gt_publisher_node',
+                output='screen',
+                parameters=[
+                    {'ground_truth_path': ground_truth_path},
+                    {'gt_time_offset': 120.0 - 155.71 - 0}
+                ],
+            )
+        )
 
         return actions
 
     return LaunchDescription([
         mode_arg,
         gt_arg,
+        pc_arg,
         OpaqueFunction(function=launch_setup)
     ])

@@ -23,6 +23,7 @@ setup(
         'console_scripts': [
             'eval_node = eval.eval_node:main',
             'gt_publisher_node = eval.gt_publisher_node:main',
+            'radar_intensity_mapper = eval.radar_intensity_mapper:main'
         ],
     },
 )

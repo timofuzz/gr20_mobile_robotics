@@ -107,6 +107,9 @@ namespace rio {
 
     // 6DoF estimator for holonomic vehicles (same as above, but you may want to use a different model if needed)
     bool solve6Dof_holonomic(const Eigen::MatrixXd& radar_data, Eigen::Vector3d& v_r, Eigen::Vector3d& w_r);
+
+    // 2D planar model for estimating [vx, vy, ωz]
+    bool solve2DPlanar(const Eigen::MatrixXd& radar_data, Eigen::Vector3d& v_r, Eigen::Vector3d& w_r);
   };
 
   // Implementation of the estimate function
@@ -122,136 +125,71 @@ namespace rio {
     sensor_msgs::msg::PointCloud2& outlier_radar_msg,
     Eigen::Vector3d& w_r) {
 
-    // Create point clouds for radar data and inliers/outliers
-    auto radar_scan = std::make_unique<pcl::PointCloud<RadarPointCloudType>>();
-    auto radar_scan_inlier = std::make_unique<pcl::PointCloud<RadarPointCloudType>>();
-    auto radar_scan_outlier = std::make_unique<pcl::PointCloud<RadarPointCloudType>>(); 
-    bool success = false;
-
     // Convert ROS message to PCL point cloud
+    auto radar_scan = std::make_unique<pcl::PointCloud<RadarPointCloudType>>();
     pcl::fromROSMsg(radar_scan_msg, *radar_scan);
 
-    std::vector<Vector11> valid_targets;
+    std::vector<Vector11> all_targets;
 
-    std::cout << "[RadarEgoVel] Total radar points: " << radar_scan->size() << std::endl;
+    //std::cout << "[RadarEgoVel] Total radar points: " << radar_scan->size() << std::endl;
 
-    // Filter and preprocess radar targets
+    // Use all radar targets without filtering
     for (uint i = 0; i < radar_scan->size(); ++i) {
-      const auto& target = radar_scan->at(i);
-      const double r = Eigen::Vector3d(target.x, target.y, target.z).norm();
+        const auto& target = radar_scan->at(i);
+        double r = Eigen::Vector3d(target.x, target.y, target.z).norm();
 
-      double azimuth = std::atan2(target.y, target.x);
-      double elevation = std::atan2(std::sqrt(target.x * target.x + target.y * target.y), target.z) - M_PI_2;
-
-      // Apply thresholds and filters
-      if (
-        r > config_.min_dist &&
-        r < config_.max_dist &&
-        target.intensity > config_.min_db &&
-        std::fabs(azimuth) < angles::from_degrees(config_.azimuth_thresh_deg) &&
-        std::fabs(elevation) < angles::from_degrees(config_.elevation_thresh_deg)
-      ) {
         Vector11 v_pt;
         v_pt << target.x, target.y, target.z,         // 0, 1, 2
                 target.intensity,                     // 3
-                -target.doppler * config_.doppler_velocity_correction_factor,                // 4
-                r, azimuth, elevation,                // 5, 6, 7
+                -target.doppler * config_.doppler_velocity_correction_factor, // 4
+                r,                                   // 5
+                0.0, 0.0,                            // 6, 7 (azimuth, elevation unused)
                 target.x / r, target.y / r, target.z / r; // 8, 9, 10
-        valid_targets.emplace_back(v_pt);
-      }
+        all_targets.emplace_back(v_pt);
     }
 
-    std::cout << "[RadarEgoVel] Valid targets after filtering: " << valid_targets.size() << std::endl;
-    if (!valid_targets.empty()) {
-      std::cout << "[RadarEgoVel] Example valid target: x=" << valid_targets[0][0]
-                << " y=" << valid_targets[0][1]
-                << " z=" << valid_targets[0][2]
-                << " intensity=" << valid_targets[0][3]
-                << " doppler=" << valid_targets[0][4] << std::endl;
-    }
+    //std::cout << "[RadarEgoVel] Using all targets: " << all_targets.size() << std::endl;
+    //if (!all_targets.empty()) {
+     //   std::cout << "[RadarEgoVel] Example target: x=" << all_targets[0][0]
+     //             << " y=" << all_targets[0][1]
+     //             << " z=" << all_targets[0][2]
+     //             << " intensity=" << all_targets[0][3]
+     //             << " doppler=" << all_targets[0][4] << std::endl;
+    //}
 
-    double min_doppler = std::numeric_limits<double>::max();
-    double max_doppler = std::numeric_limits<double>::lowest();
-    double sum_doppler = 0.0;
-    for (const auto& v_pt : valid_targets) {
-        double d = v_pt[idx_.doppler];
-        min_doppler = std::min(min_doppler, d);
-        max_doppler = std::max(max_doppler, d);
-        sum_doppler += d;
-    }
-    std::cout << "[RadarEgoVel] Doppler stats: min=" << min_doppler
-              << " max=" << max_doppler
-              << " mean=" << (sum_doppler / valid_targets.size()) << std::endl;
-
-    // Proceed if we have enough valid targets
-    if (valid_targets.size() > 2) {
-      std::vector<double> v_dopplers;
-      for (const auto& v_pt : valid_targets)
-        v_dopplers.emplace_back(std::fabs(v_pt[idx_.doppler]));
-
-      // Calculate median of Doppler velocities
-      const size_t n = v_dopplers.size() * (1.0 - config_.allowed_outlier_percentage);
-      std::nth_element(v_dopplers.begin(), v_dopplers.begin() + n, v_dopplers.end());
-      const auto median = v_dopplers[n];
-
-      std::cout << "[RadarEgoVel] Median Doppler: " << median << std::endl;
-
-      if (median < config_.thresh_zero_velocity) {
-        std::cout << "[RadarEgoVel] Median Doppler below threshold, assuming zero velocity." << std::endl;
-        // Assume zero velocity if median Doppler is below threshold
-        v_r = Eigen::Vector3d(0, 0, 0);
-        w_r = Eigen::Vector3d(0, 0, 0); // <-- Always set w_r to zero here
-        sigma_v_r = Eigen::Vector3d(
-          config_.sigma_zero_velocity_x,
-          config_.sigma_zero_velocity_y,
-          config_.sigma_zero_velocity_z
-        );
-        // Collect inliers
-        for (const auto& item : valid_targets)
-          if (std::fabs(item[idx_.doppler]) < config_.thresh_zero_velocity)
-            radar_scan_inlier->push_back(toRadarPointCloudType(item, idx_));
-        success = true;
-      } else {
-        // Prepare radar data for RANSAC
-        Eigen::MatrixXd radar_data(valid_targets.size(), 4);
-        uint idx = 0;
-        for (const auto& v_pt : valid_targets)
-          radar_data.row(idx++) = Eigen::Vector4d(
+    // Prepare radar data for estimation
+    Eigen::MatrixXd radar_data(all_targets.size(), 4);
+    uint idx = 0;
+    for (const auto& v_pt : all_targets)
+        radar_data.row(idx++) = Eigen::Vector4d(
             v_pt[idx_.normalized_x],
             v_pt[idx_.normalized_y],
             v_pt[idx_.normalized_z],
             v_pt[idx_.doppler]
-          );
-        std::vector<uint> inlier_idx_best;
-        std::vector<uint> outlier_idx_best;
-         // Perform RANSAC-based estimation
-        std::cout << "[RadarEgoVel] Running RANSAC with " << valid_targets.size() << " targets." << std::endl;
-        success = solve3DFullRansac(
-          radar_data, pitch, roll, yaw, is_holonomic,
-          v_r, sigma_v_r, inlier_idx_best, outlier_idx_best, w_r
         );
-        std::cout << "[RadarEgoVel] RANSAC result: " << (success ? "success" : "failure") << std::endl;
-        std::cout << "[RadarEgoVel] Inliers: " << inlier_idx_best.size() << ", Outliers: " << outlier_idx_best.size() << std::endl;
 
-        // Collect inliers and outliers
-        for (const auto& idx : inlier_idx_best)
-          radar_scan_inlier->push_back(toRadarPointCloudType(valid_targets.at(idx), idx_));
-        for (const auto& idx : outlier_idx_best)
-          radar_scan_outlier->push_back(toRadarPointCloudType(valid_targets.at(idx), idx_));
-        // NOTE: w_r is set by solve6Dof_* inside RANSAC
-      }
+    // Run estimation if enough points
+    bool success = false;
+    if (all_targets.size() > 2) {
+        std::vector<uint> inlier_idx_best, outlier_idx_best;
+        success = solve3DFullRansac(
+            radar_data, pitch, roll, yaw, is_holonomic,
+            v_r, sigma_v_r, inlier_idx_best, outlier_idx_best, w_r
+        );
+        //std::cout << "[RadarEgoVel] RANSAC result: " << (success ? "success" : "failure") << std::endl;
     } else {
-      std::cout << "[RadarEgoVel] Not enough valid targets for estimation." << std::endl;
-      v_r = Eigen::Vector3d(0, 0, 0);
-      w_r = Eigen::Vector3d(0, 0, 0); // <-- Always set w_r to zero here too
-      sigma_v_r = Eigen::Vector3d(
-        config_.sigma_zero_velocity_x,
-        config_.sigma_zero_velocity_y,
-        config_.sigma_zero_velocity_z
-      );
+        //std::cout << "[RadarEgoVel] Not enough points for estimation." << std::endl;
+        v_r = Eigen::Vector3d(0, 0, 0);
+        w_r = Eigen::Vector3d(0, 0, 0);
+        sigma_v_r = Eigen::Vector3d(
+            config_.sigma_zero_velocity_x,
+            config_.sigma_zero_velocity_y,
+            config_.sigma_zero_velocity_z
+        );
     }
 
-    // Prepare inlier point cloud message
+    // Output all points as inliers (since no filtering)
+    auto radar_scan_inlier = std::make_unique<pcl::PointCloud<RadarPointCloudType>>(*radar_scan);
     radar_scan_inlier->height = 1;
     radar_scan_inlier->width = radar_scan_inlier->size();
     pcl::PCLPointCloud2 tmp_inlier;
@@ -259,9 +197,10 @@ namespace rio {
     pcl_conversions::fromPCL(tmp_inlier, inlier_radar_msg);
     inlier_radar_msg.header = radar_scan_msg.header;
 
-    // Prepare outlier point cloud message
+    // No outliers
+    auto radar_scan_outlier = std::make_unique<pcl::PointCloud<RadarPointCloudType>>();
     radar_scan_outlier->height = 1;
-    radar_scan_outlier->width = radar_scan_outlier->size();
+    radar_scan_outlier->width = 0;
     pcl::PCLPointCloud2 tmp_outlier;
     pcl::toPCLPointCloud2<RadarPointCloudType>(*radar_scan_outlier, tmp_outlier);
     pcl_conversions::fromPCL(tmp_outlier, outlier_radar_msg);
@@ -269,7 +208,19 @@ namespace rio {
 
     return success;
   }
-bool RadarEgoVel::solve3DFullRansac(const Eigen::MatrixXd& radar_data, const double& pitch, const double& roll, const double& yaw, bool is_holonomic, Eigen::Vector3d& v_r, Eigen::Vector3d& sigma_v_r, std::vector<uint>& inlier_idx_best, std::vector<uint>& outlier_idx_best, Eigen::Vector3d& w_r) {
+
+bool RadarEgoVel::solve3DFullRansac(
+    const Eigen::MatrixXd& radar_data,
+    const double& pitch,
+    const double& roll,
+    const double& yaw,
+    bool is_holonomic,
+    Eigen::Vector3d& v_r,
+    Eigen::Vector3d& sigma_v_r,
+    std::vector<uint>& inlier_idx_best,
+    std::vector<uint>& outlier_idx_best,
+    Eigen::Vector3d& w_r)
+{
     // Matrix with radar data
     Eigen::MatrixXd H_all(radar_data.rows(), 3);
     H_all.col(0) = radar_data.col(0);
@@ -292,30 +243,16 @@ bool RadarEgoVel::solve3DFullRansac(const Eigen::MatrixXd& radar_data, const dou
 
             for (uint i = 0; i < config_.N_ransac_points; ++i)
                 radar_data_iter.row(i) = radar_data.row(idx.at(i));
-            bool rtn = false;
-            // Call to solve3DFull with the new equations
-            if(!is_holonomic){
-               rtn = solve3DFull_not_holonomic(radar_data_iter, pitch, roll, yaw, v_r);
-            }else{
-               rtn = solve3DFull_holonomic(radar_data_iter, pitch, roll, v_r);
-            }
+            bool rtn = solve3DFull_holonomic(radar_data_iter, pitch, roll, v_r);
             
             if (rtn) {
                 Eigen::VectorXd err(radar_data.rows());
                 for (int i = 0; i < radar_data.rows(); ++i) {
-                  if(!is_holonomic){
-                    // Calculation of expected_vr using the new equations:
-                   double expected_vr = v_r.x() * H_all(i, 0) * std::cos(pitch) * std::cos(yaw) +
-                                   v_r.y() * H_all(i, 1) * std::cos(pitch) * std::sin(yaw) +
-                                   v_r.z() * H_all(i, 2) * std::sin(pitch);
-                    err(i) = std::abs(y_all(i) - expected_vr);
-                    }else{
-                    // Calculation of expected_vr using the new equations:
+                    // Calculation of expected_vr using the holonomic model:
                     double expected_vr = H_all(i, 0) * std::cos(pitch) + 
                                          H_all(i, 1) * std::cos(roll) +  
                                          H_all(i, 2) * (std::sin(pitch) * std::sin(roll));
                     err(i) = std::abs(y_all(i) - expected_vr);
-                    }
                 }
 
                 // Identification of inliers and outliers
@@ -327,12 +264,6 @@ bool RadarEgoVel::solve3DFullRansac(const Eigen::MatrixXd& radar_data, const dou
                     else
                         outlier_idx.emplace_back(j);
                 }
-
-                // Adjust to limit the proportion of outliers
-                //if (float(outlier_idx.size()) / (inlier_idx.size() + outlier_idx.size()) > 0.05) {
-                //    inlier_idx.insert(inlier_idx.end(), outlier_idx.begin(), outlier_idx.end());
-                //    outlier_idx.clear();
-                //}
 
                 // Update the best inlier and outlier indices
                 if (inlier_idx.size() > inlier_idx_best.size()) {
@@ -349,24 +280,52 @@ bool RadarEgoVel::solve3DFullRansac(const Eigen::MatrixXd& radar_data, const dou
     if (!inlier_idx_best.empty()) {
         // Require at least 10% of points as inliers for a valid result
         if (inlier_idx_best.size() < std::max(10u, static_cast<uint>(radar_data.rows() * 0.1))) {
-            std::cout << "[RadarEgoVel] Not enough inliers for a valid estimate: " << inlier_idx_best.size() << std::endl;
             return false;
         }
         Eigen::MatrixXd radar_data_inlier(inlier_idx_best.size(), 4);
         for (uint i = 0; i < inlier_idx_best.size(); ++i)
             radar_data_inlier.row(i) = radar_data.row(inlier_idx_best.at(i));
-        bool rtn = false;
-        if(!is_holonomic){
-            rtn = solve6Dof_not_holonomic(radar_data_inlier, v_r, w_r);
-        }else{
-            rtn = solve6Dof_holonomic(radar_data_inlier, v_r, w_r);
+        
+        // Choose between 3D holonomic or 2D planar with rotation
+        bool use_planar_model = true;  // Flag to enable planar model with rotation
+        
+        bool rtn;
+        if (use_planar_model) {
+            // Use 2D planar model to get rotation
+            rtn = solve2DPlanar(radar_data_inlier, v_r, w_r);
+            
+            // Apply coordinate transformation (same as before)
+            double temp = v_r.x();
+            v_r.x() = v_r.y();  // Y becomes X
+            v_r.y() = -temp;    // X becomes -Y (for 90° clockwise rotation)
+            
+            // No need to swap z component as it's zero
+            
+            // Also swap angular velocities appropriately
+            temp = w_r.x();
+            w_r.x() = w_r.y();
+            w_r.y() = -temp;
+            // w_r.z remains the same (rotation around vertical axis)
+        } else {
+            // Use original 3D holonomic model without rotation
+            rtn = solve3DFull_holonomic(radar_data_inlier, pitch, roll, v_r);
+            
+            // Apply coordinate transformation
+            double temp = v_r.x();
+            v_r.x() = v_r.y();
+            v_r.y() = -temp;
+            
+            // No rotation estimation
+            w_r = Eigen::Vector3d::Zero();
         }
-        // Store or output w_r as needed
+        
         return rtn;
     }
 
     return false;
 }
+
+// Solve for non-holonomic vehicles
 bool RadarEgoVel::solve3DFull_not_holonomic(const Eigen::MatrixXd& radar_data, const double pitch, const double roll, const double yaw, Eigen::Vector3d& v_r) {
     // Initialize H_all with the first three columns of radar_data
     Eigen::MatrixXd H_all(radar_data.rows(), 3);
@@ -399,6 +358,7 @@ bool RadarEgoVel::solve3DFull_not_holonomic(const Eigen::MatrixXd& radar_data, c
     return true;
 }
 
+// Solve for holonomic vehicles
 bool RadarEgoVel::solve3DFull_holonomic(const Eigen::MatrixXd& radar_data, const double pitch, const double roll, Eigen::Vector3d& v_r) {
     // Define the rotation matrix for pitch (rotation around the y-axis)
     Eigen::Matrix3d R_pitch;
@@ -428,50 +388,73 @@ bool RadarEgoVel::solve3DFull_holonomic(const Eigen::MatrixXd& radar_data, const
     return true;
 }
 
-// 6DoF estimator for non-holonomic vehicles
-bool RadarEgoVel::solve6Dof_not_holonomic(const Eigen::MatrixXd& radar_data, Eigen::Vector3d& v_r, Eigen::Vector3d& w_r) {
+// 2D planar model for estimating [vx, vy, ωz]
+bool RadarEgoVel::solve2DPlanar(const Eigen::MatrixXd& radar_data, Eigen::Vector3d& v_r, Eigen::Vector3d& w_r) {
     int N = radar_data.rows();
-    std::cout << "[RadarEgoVel] 6DoF solver starting with " << N << " points" << std::endl;
-    
-    Eigen::MatrixXd A(N, 6);
-    Eigen::VectorXd b(N);
+    if (N < 3) return false;
 
+    Eigen::MatrixXd A(N, 3);
+    Eigen::VectorXd b = radar_data.col(3); // Doppler measurements
+
+    // Extract normalized direction vectors
+    Eigen::VectorXd nx = radar_data.col(0);
+    Eigen::VectorXd ny = radar_data.col(1);
+    
+    // Use a balanced perpendicular scale
+    double perp_scale = 8.0;
+    
     for (int i = 0; i < N; ++i) {
-        // n: normalized direction vector for Doppler projection
-        Eigen::Vector3d r(radar_data(i, 0), radar_data(i, 1), radar_data(i, 2));
-        Eigen::Vector3d n = r.normalized();  // Use normalized direction for Doppler
+        // Fill linear velocity components
+        A(i, 0) = nx(i);
+        A(i, 1) = ny(i);
         
-        // Skew-symmetric matrix for cross product
-        Eigen::Matrix3d r_cross;
-        r_cross << 0, -r(2), r(1),
-                   r(2), 0, -r(0),
-                   -r(1), r(0), 0;
+        // Create orthogonal lever arm (perpendicular to direction)
+        double x_perp = -ny(i) * perp_scale;  // Perpendicular x (90° rotated)
+        double y_perp = nx(i) * perp_scale;   // Perpendicular y (90° rotated)
         
-        // Fill A: [n^T, n^T * r_cross]
-        A.block<1,3>(i,0) = n.transpose();
-        A.block<1,3>(i,3) = (n.transpose() * r_cross);
-        
-        b(i) = radar_data(i,3); // Doppler
+        // Rotation term: v_tangential = ω × r
+        A(i, 2) = -y_perp*nx(i) + x_perp*ny(i);
     }
 
-    // Add regularization for numerical stability
-    Eigen::MatrixXd ATA = A.transpose() * A;
-    double reg = 1e-2;  // Small regularization factor
-    ATA.block<3,3>(3,3) += Eigen::Matrix3d::Identity() * reg;
+    // Use regularization to stabilize the solution
+    Eigen::MatrixXd reg = Eigen::MatrixXd::Zero(3, 3);
+    reg(2, 2) = 0.2;  // Keep regularization for stability
     
-    // Solve with regularization
-    Eigen::VectorXd x = ATA.ldlt().solve(A.transpose() * b);
-    v_r = x.segment<3>(0);
-    w_r = x.segment<3>(3);
+    // Solve the system
+    Eigen::Vector3d result = (A.transpose() * A + reg).ldlt().solve(A.transpose() * b);
     
-    std::cout << "[RadarEgoVel] 6DoF solution: v = [" << v_r.x() << ", " << v_r.y() << ", " << v_r.z() 
-              << "], w = [" << w_r.x() << ", " << w_r.y() << ", " << w_r.z() << "]" << std::endl;
+    // Extract results
+    v_r.x() = result(0);
+    v_r.y() = result(1);
+    v_r.z() = 0.0;
+    
+    w_r.x() = 0.0;
+    w_r.y() = 0.0;
+    
+    // Calculate linear speed (for speed-dependent scaling)
+    double speed = std::sqrt(v_r.x()*v_r.x() + v_r.y()*v_r.y());
+    
+    // Inverse speed factor: higher at low speeds, lower at high speeds
+    double speed_factor = 1.0;
+    if (speed > 0.01) {  // Only apply scaling above 0.5 m/s
+        // Base scale factor of 0.3
+        // At 1 m/s: factor = 0.3 * (1.5/1.0) = 0.45
+        // At 5 m/s: factor = 0.3 * (1.5/5.0) = 0.09
+        double reference_speed = 1.5;  // Reference speed for normalization
+        speed_factor = 0.3 * (reference_speed / speed);
+        
+        // Clamp to reasonable range
+        speed_factor = std::min(speed_factor, 2.0);  // Cap max scale
+        speed_factor = std::max(speed_factor, 0.1);  // Ensure minimum scale
+    } else {
+        // At very low speeds, use the default scaling factor
+        speed_factor = 0.3;
+    }
+    
+    // Apply speed-dependent scaling to angular velocity
+    w_r.z() = result(2) * speed_factor;
+    
     return true;
-}
-
-// 6DoF estimator for holonomic vehicles (same as above, but you may want to use a different model if needed)
-bool RadarEgoVel::solve6Dof_holonomic(const Eigen::MatrixXd& radar_data, Eigen::Vector3d& v_r, Eigen::Vector3d& w_r) {
-    return solve6Dof_not_holonomic(radar_data, v_r, w_r);
 }
 
 }

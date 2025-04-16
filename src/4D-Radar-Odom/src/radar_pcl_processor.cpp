@@ -220,12 +220,12 @@ private:
         q_rotation_matrix.getRPY(roll, pitch, yaw);
 
         // Estimate ego velocity using the radar ego-velocity estimator
-        RCLCPP_INFO(this->get_logger(), "Calling estimator...");
+        //RCLCPP_INFO(this->get_logger(), "Calling estimator...");
         // Update this call to pass w_radar if your estimator supports it
         bool ok = estimator_->estimate(pc2_raw_msg, pitch, roll, yaw, holonomic_vehicle_, v_radar, sigma_v_radar, inlier_radar_msg, outlier_radar_msg, w_radar);
         // If your estimate() does not yet take w_radar, update its signature and implementation accordingly
 
-        RCLCPP_INFO(this->get_logger(), "Estimator returned: %d", ok);
+        //RCLCPP_INFO(this->get_logger(), "Estimator returned: %d", ok);
         if (ok) {
             // Publish the estimated twist
             geometry_msgs::msg::TwistStamped twist_msg;

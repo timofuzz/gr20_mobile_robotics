@@ -36,7 +36,7 @@ class SlamEvalNode(Node):
         # Pass the time offset to the loader
         self.gt_poses = load_ground_truth_tum(gt_path, time_offset=gt_time_offset)
         self.gt_time_offset = gt_time_offset
-        self.errors = []  # List of (timestamp, position error, orientation error)
+        self.errors = []  # List of (timestamp, position error, orientation error, xy position error)
         self.times = []   # List of timestamps
         # Subscribe to the SLAM pose topic
         self.slam_sub = self.create_subscription(
@@ -87,13 +87,15 @@ class SlamEvalNode(Node):
         ])
         # Compute position error (Euclidean distance)
         pos_err = np.linalg.norm(slam_pos - gt_pos)
+        # Compute XY position error (ignore Z)
+        pos_err_xy = np.linalg.norm(slam_pos[:2] - np.array(gt_pos[:2]))
         # Compute orientation error (angle between quaternions)
         r_slam = R.from_quat(slam_quat)
         r_gt = R.from_quat(gt_quat)
         rot_err = r_slam.inv() * r_gt
         ang_err = rot_err.magnitude()
         # Store errors and time
-        self.errors.append((t, pos_err, ang_err))
+        self.errors.append((t, pos_err, ang_err, pos_err_xy))
         self.times.append(t)
         # Log the errors
         #self.get_logger().info(f"SLAM t={t:.2f} gt_t={gt_t:.2f} slam_pos={slam_pos} gt_pos={gt_pos}")
@@ -106,19 +108,25 @@ class SlamEvalNode(Node):
         Saves the plots into the images folder in the src directory.
         """
         if not self.errors:
-            print("No errors to plot.")
+            print("No data to plot.")
             return
         times = [e[0] - self.errors[0][0] for e in self.errors]  # Relative time
         pos_errs = [e[1] for e in self.errors]
         ang_errs = [np.degrees(e[2]) for e in self.errors]
-        plt.figure()
-        plt.subplot(2,1,1)
-        plt.plot(times, pos_errs)
-        plt.ylabel("Position Error [m]")
-        plt.subplot(2,1,2)
-        plt.plot(times, ang_errs)
-        plt.ylabel("Orientation Error [deg]")
-        plt.xlabel("Time [s]")
+        pos_errs_xy = [e[3] for e in self.errors]
+
+        fig, axs = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
+        axs[0].plot(times, pos_errs)
+        axs[0].set_ylabel("Position Error [m]")
+        axs[0].set_title("SLAM vs Ground Truth Errors")
+
+        axs[1].plot(times, pos_errs_xy)
+        axs[1].set_ylabel("XY Position Error [m]")
+
+        axs[2].plot(times, ang_errs)
+        axs[2].set_ylabel("Orientation Error [deg]")
+        axs[2].set_xlabel("Time [s]")
+
         plt.tight_layout()
 
         # Save the plot to the images directory inside the eval package share directory

@@ -48,6 +48,9 @@ def load_ground_truth_tum(path, time_offset=0.0):
 
     # Remove all poses that happen before t=0
     gt_poses = [(t, pos, quat) for (t, pos, quat) in gt_poses if t >= 0]
+    # Remove all poses that happen after 1455.53504479 seconds (145553504479 ns)
+    gt_poses = [(t, pos, quat) for (t, pos, quat) in gt_poses if t <= 145.553504479]
+
 
     
     return gt_poses
@@ -56,7 +59,7 @@ class GroundTruthPublisher(Node):
     def __init__(self):
         super().__init__('ground_truth_publisher')
         self.declare_parameter('ground_truth_path', '')
-        self.declare_parameter('publish_rate', 5.0)
+        self.declare_parameter('publish_rate', 10.0)
         self.declare_parameter('gt_time_offset', 0.0)
         gt_path = self.get_parameter('ground_truth_path').get_parameter_value().string_value
         self.publish_rate = self.get_parameter('publish_rate').get_parameter_value().double_value
@@ -87,7 +90,8 @@ class GroundTruthPublisher(Node):
         if not self.slam_pose_received:
             return  # Wait until the first SLAM pose is received
         if self.idx >= len(self.gt_poses):
-            self.get_logger().info("Finished publishing all ground truth poses.")
+            self.get_logger().info("Finished publishing all ground truth poses. Shutting down node.")
+            rclpy.shutdown()
             return
         t, pos, quat = self.gt_poses[self.idx]
         now = self.get_clock().now().to_msg()
@@ -99,7 +103,7 @@ class GroundTruthPublisher(Node):
             position=Point(x=pos[0], y=pos[1], z=pos[2]),
             orientation=Quaternion(x=quat[0], y=quat[1], z=quat[2], w=quat[3])
         )
-        self.pose_pub.publish(pose_msg)
+        # self.pose_pub.publish(pose_msg)  # Commented out: only publish path
         self.path_msg.header.stamp = now
         self.path_msg.poses.append(pose_msg)
         self.path_pub.publish(self.path_msg)

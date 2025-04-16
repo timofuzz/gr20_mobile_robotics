@@ -47,10 +47,12 @@ ament_target_dependencies(record rclcpp nav_msgs geometry_msgs)
 ament_target_dependencies(baselink_tf rclcpp nav_msgs tf2_ros)
 
 target_link_libraries(optimizer ${CERES_LIBRARIES} ${PCL_LIBRARIES})
+target_link_libraries(baselink_tf tf2_geometry_msgs::tf2_geometry_msgs)
 
 install(TARGETS
   radar_pcl_processor
   optimizer
+  baselink_tf
   DESTINATION lib/${PROJECT_NAME}
 )
 
