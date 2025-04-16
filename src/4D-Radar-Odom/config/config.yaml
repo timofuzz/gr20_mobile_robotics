@@ -1,0 +1,53 @@
+radar_pcl_processor:
+  ros__parameters:
+    imu_topic: '/imu/data'        # IMU topic
+    radar_topic: '/hugin_raf_1/radar_data' # Radar topic
+    holonomic_vehicle: true            # Holonomic ground Vehicle (true/false)
+
+    #Channel number of intensity and doppler channel
+    intensity_channel: 6
+    doppler_channel: 7
+    enable_dynamic_object_removal: true # Remove dynamic objects
+
+    #Distance filter thresholds
+    distance_near_thresh: 0.05           
+    distance_far_thresh: 120.0
+    z_low_thresh: -100.0
+    z_high_thresh: 150.0
+
+    #Ego velocity estimator thresholds/params
+    min_dist: 0.2
+    max_dist: 500.0
+    min_db: 0.0 #down from 5.0
+    elevation_thresh_deg: 70.00
+    azimuth_thresh_deg: 75.00
+    doppler_velocity_correction_factor: 1.0
+    thresh_zero_velocity: 0.1
+    allowed_outlier_percentage: 0.40
+    sigma_zero_velocity_x: 1.0e-03
+    sigma_zero_velocity_y: 3.2e-03
+    sigma_zero_velocity_z: 1.0e-02
+    sigma_offset_radar_x: 0.0
+    sigma_offset_radar_y: 0.0
+    sigma_offset_radar_z: 0.0
+    max_sigma_x: 0.3
+    max_sigma_y: 0.3
+    max_sigma_z: 0.3
+    max_r_cond: 0.3
+    outlier_prob: 0.1
+    success_prob: 0.99
+    N_ransac_points: 5.0
+    inlier_thresh: 5.0
+    
+graph_slam:
+  ros__parameters:
+    bias_rpy: [0.0, 0.0, 0.0]   #IMU orientation bias in rads
+
+    #Keyframe Thresholds
+    keyframe_delta_trans : 1.0
+    keyframe_delta_angle: 0.3
+    
+    #Optimization window size
+    max_window_size : 5
+
+
