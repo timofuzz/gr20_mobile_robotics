@@ -1,0 +1,10 @@
+graph_slam:
+  ros__parameters:
+    bias_rpy:
+      roll: 0.0
+      pitch: 0.0
+      yaw: 0.0
+    keyframe_delta_trans: 1.0
+    keyframe_delta_angle: 0.3
+    max_window_size: 5
+
