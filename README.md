@@ -47,3 +47,18 @@ ros2 bag play hdl400.db3
 
 If everything is done correctly you can see the results in RViz:
 ![image](https://github.com/user-attachments/assets/e0bb4986-7b53-4403-b346-f2f2d21ab75b)
+
+## Radar Odom Setup
+1. The odom is set up and run just like any other ROS2 package:
+```
+cd ~/<repo_ws>
+colcon build
+source install/setup.bash
+ros2 launch radar_odom run.py
+```
+
+Once the node is running, it will be waiting for the defined imu and radar topics (the defaults are /imu/vectornav and /radar_pcl_enchanced). To change these to the ones you are trying to work with, navigate to:
+
+1. The config files - change the imu and radar topic names to match the ones you are working with.
+2. radar_pcl_processor.cpp - change the imu and radar topic names here as well
+
