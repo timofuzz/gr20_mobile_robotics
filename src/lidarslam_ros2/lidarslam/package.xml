@@ -3,8 +3,8 @@
 <package format="3">
   <name>lidarslam</name>
   <version>0.0.0</version>
-  <description>lidarslam_ros2 integration package</description>
-  <maintainer email="rsasaki0109@gmail.com">sasaki</maintainer>
+  <description>lidarslam_ros2 lidar slam basis for raadr slam</description>
+  <maintainer email="tlazousk@umich.edu">tlazousk</maintainer>
   <license>BSD2</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
