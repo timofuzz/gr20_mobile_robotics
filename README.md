@@ -1,20 +1,6 @@
 # gr20_mobile_robotics
 
-This project was run and tested on Ubuntu 22.04 with ROS2 Humble.
-
-## Radar Odom Setup
-1. The odom is set up and run just like any other ROS2 package:
-```
-cd ~/<repo_ws>
-colcon build
-source install/setup.bash
-ros2 launch radar_odom run.py
-```
-
-Once the node is running, it will be waiting for the defined imu and radar topics (the defaults are /imu/vectornav and /radar_pcl_enchanced). To change these to the ones you are trying to work with, navigate to:
-
-1. The config files - change the imu and radar topic names to match the ones you are working with.
-2. radar_pcl_processor.cpp - change the imu and radar topic names here as well
+This radar SLAM project was built based on graph SLAM, which is commonly used for LiDAR SLAM. This repo also includes a framework for radar odometry prior calculator that can be integrated in the to the SLAM packaged as a velocity prior, though the results, ultimately, weren't too meaningful. This setup was run and tested on Ubuntu 22.04 with ROS2 Humble.
 
 ## Build instructions for this repo
 1. Clone/download this repo
